@@ -1,0 +1,91 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Parameters": {
+    "RSDBName": {
+       "Description": "The name of the RDS database you wish to provision",
+       "Type": "String",
+       "MaxLength": 20,
+       "Default": "myRedshiftdb"
+    },
+    "RSMasterUsername": {
+			"NoEcho": "true",
+			"Description": "The database admin account username.",
+			"Type": "String",
+			"MinLength": "1",
+			"MaxLength": "128",
+			"AllowedPattern": "[a-zA-Z][a-zA-Z0-9]{1,128}",
+			"Default":"master"
+		},
+    "RSInstanceType": {
+			"Description": "The RedShift instance type.",
+			"Type": "String",
+			"Default": "ds2.xlarge"
+		},
+    "RSClusterType": {
+			"Description": "The RedShift cluster type.",
+			"Type": "String",
+			"Default": "ds2.xlarge"
+		},
+		"RSEncrypted": {
+			"Description": "Whether or not the RS instance is encrypted.",
+			"Type": "String",
+			"AllowedValues": ["true", "false"],
+			"Default": "true"
+		},
+		"RSStorageEncryptionKey": {
+			"Default": "arn:aws:kms:ap-southeast-2:178453356607:key/f126f4cd-7d35-45f5-aad4-ff1c43d6a42d",
+			"Description": "Specify the ARN of the Custom KMS key to encrypt the database, if not, RDS will use the default one.",
+			"Type": "String",
+			"AllowedPattern": "(arn:aws:kms:.*)|(^$)"
+		},
+		"RSPort": {
+			"Description": "The port for the instance. If it is 0, it will assign the default based on Database Engine.",
+			"Type": "String",
+			"Default": "5439"
+		},
+		"RSRoles": {
+			"Default": "",
+			"Description": "The role required to access S3 buckets .",
+			"Type": "String"
+		}
+  },
+"RedshiftCluster": {
+  "Type": "AWS::Redshift::Cluster",
+  "Properties": {
+    "DBName": {"Ref":"RSDBName"},
+    "ClusterParameterGroupName" :{ "Ref":"RedshiftClusterParameterGroup" },
+    "MasterUsername": {"Ref":"RSMasterUsername"},
+    "MasterUserPassword": {"Fn::Join": [
+    "", ["{{resolve:secretsmanager:","redshift-password",":SecretString:password}}"]
+     ] },
+    "NodeType": {"Ref":"RSInstanceType"},
+    "ClusterType": {"Ref":"RSClusterType"},
+    "Encrypted":{"Ref":"RSEncrypted"},
+    "KmsKeyId":{"Ref":"RSStorageEncryptionKey"},
+    "ClusterSecurityGroups" :{"Ref":"ConnSecurityGroup"},
+    "Port":{"Ref":"RSPort"},
+    "IamRoles" : [ {"Ref":"RSRoles"} ],
+
+  }
+},
+
+"RedshiftClusterParameterGroup" : {
+  "Type" : "AWS::Redshift::ClusterParameterGroup",
+  "Properties" : {
+    "Description" : "My parameter group",
+    "ParameterGroupFamily" : "redshift-1.0",
+    "Parameters" : [ {
+      "ParameterName" : "require_ssl",
+      "ParameterValue" : "true"
+    }]
+  }
+},
+    "ConnSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "VpcId" : { "Ref" : "VpcId" },
+        "GroupDescription" : "Enable Redshift access via port 5439",
+        "SecurityGroupIngress" : [ { "IpProtocol" : "tcp", "FromPort" : "5439", "ToPort" : "5439", "CidrIp" : "0.0.0.0/0" } ]
+      }
+    }
+}
